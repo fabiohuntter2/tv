@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Painel TV Huntter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* VOICE: sala de controle de uma emissora — direto, operacional, sem enfeite.
+   IDEA: a mesa de corte (switcher) de uma TV ao vivo: monitor de programa grande, botões de sinal, luz vermelha de "no ar".
+   PICTURE: o monitor ao vivo com a luz "no ar" e o botão de transmitir para a TV.
+   COLOUR and TYPE: grafite quase preto, vermelho da marca como luz de estúdio, branco; Barlow Condensed (letreiro de TV) + Barlow.
+   LAYOUT: barra lateral fixa com o menu do painel; conteúdo em faixas; no celular, menu recolhido e tudo em uma coluna. */
+:root{color-scheme:dark;--acc:#e10600;--bg:#0e0f12;--bg2:#16181d;--bg3:#1f2229;--line:#2b2f38;--ink:#f3f4f6;--mut:#9aa1ad;--ok:#22c55e;--warn:#f59e0b;--r:12px}
+*{box-sizing:border-box;min-width:0}
+html{scroll-padding-top:72px}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 Barlow,system-ui,sans-serif;overflow-x:clip}
+a{color:inherit}
+h1,h2,h3{font-family:"Barlow Condensed",Barlow,sans-serif;line-height:1.05;margin:0;text-wrap:balance}
+h1{font-size:clamp(32px,4vw,44px);font-weight:800}
+h2{font-size:26px;font-weight:700}
+h3{font-size:20px;font-weight:700}
+.mut{color:var(--mut)}.sm{font-size:14px}
+.app{display:grid;grid-template-columns:260px minmax(0,1fr);min-height:100vh}
+aside{background:var(--bg2);border-right:1px solid var(--line);padding:20px 14px;position:sticky;top:0;height:100vh;overflow:auto;display:flex;flex-direction:column;gap:18px}
+.brand{display:flex;align-items:center;gap:10px;padding:4px 8px}
+.brand img{max-height:44px;max-width:150px}
+.mark{font-family:"Barlow Condensed",Barlow,sans-serif;font-weight:800;font-size:22px;line-height:1;letter-spacing:.5px}
+.mark b{display:block;color:var(--acc);font-size:26px}
+nav{display:flex;flex-direction:column;gap:2px}
+nav a{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:10px;text-decoration:none;color:var(--mut);font-weight:500;min-height:44px}
+nav a:hover{background:var(--bg3);color:var(--ink)}
+nav a.on{background:color-mix(in srgb,var(--acc) 16%,transparent);color:var(--ink)}
+nav a.on svg{color:var(--acc)}
+nav .sep{font-size:13px;color:var(--mut);padding:14px 12px 4px}
+svg.i{width:20px;height:20px;flex:none;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.onair{margin-top:auto;display:flex;align-items:center;gap:10px;padding:12px;border-radius:10px;background:var(--bg3);font-size:14px}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--mut);flex:none}
+.dot.live{background:var(--acc);box-shadow:0 0 0 0 var(--acc);animation:pulse 1.6s infinite}
+@keyframes pulse{70%{box-shadow:0 0 0 8px transparent}}
+main{padding:0 0 60px}
+.top{display:flex;align-items:center;gap:12px;padding:14px max(4vw,16px);border-bottom:1px solid var(--line);position:sticky;top:0;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(8px);z-index:5}
+.top .grow{flex:1}
+.top .menu-btn{display:none}
+.band{padding:clamp(24px,3.5vw,44px) max(4vw,16px)}
+.view{display:none}.view.on{display:block}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:10px 16px;border-radius:10px;border:1px solid var(--line);background:var(--bg3);color:var(--ink);font:600 15px Barlow,sans-serif;cursor:pointer;text-decoration:none;white-space:nowrap}
+.btn:hover{border-color:var(--mut)}
+.btn.pri{background:var(--acc);border-color:var(--acc);color:#fff}
+.btn.pri:hover{filter:brightness(1.1)}
+.btn.ghost{background:transparent}
+.btn:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,nav a:focus-visible{outline:3px solid color-mix(in srgb,var(--acc) 70%,#fff);outline-offset:2px}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.card{background:var(--bg2);border:1px solid var(--line);border-radius:var(--r);padding:20px}
+.grid{display:grid;gap:16px}
+.g4{grid-template-columns:repeat(auto-fill,minmax(170px,1fr))}
+.g2{grid-template-columns:minmax(0,1.6fr) minmax(0,1fr)}
+.stat{display:flex;flex-direction:column;gap:4px;text-decoration:none}
+.stat:hover{border-color:var(--mut)}
+.stat .n{font:800 40px/1 "Barlow Condensed",Barlow,sans-serif;text-align:left}
+.head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:20px}
+/* monitor */
+.monitor{position:relative;background:#000;border-radius:var(--r);overflow:hidden;aspect-ratio:16/9;border:1px solid var(--line)}
+.monitor video{position:absolute;inset:0;width:100%;height:100%;background:#000}
+.tally{position:absolute;top:14px;left:14px;display:flex;align-items:center;gap:8px;background:rgba(0,0,0,.6);padding:6px 12px;border-radius:999px;font:700 14px "Barlow Condensed",Barlow,sans-serif;letter-spacing:.5px}
+.ov{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:24px;background:radial-gradient(ellipse at center,rgba(0,0,0,.35),rgba(0,0,0,.85))}
+.ov[hidden]{display:none}
+.ov .big{width:84px;height:84px;border-radius:50%;background:var(--acc);border:0;display:grid;place-items:center;cursor:pointer;color:#fff;margin:0 auto 12px}
+.ov .big svg{width:36px;height:36px;fill:#fff;stroke:none}
+.castbar{position:absolute;inset:auto 0 0 0;padding:12px 16px;background:linear-gradient(transparent,rgba(0,0,0,.85));font-size:14px}
+.ctrl{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:12px}
+.ctrl .grow{flex:1}
+input[type=range]{accent-color:var(--acc);width:120px}
+.seg{display:inline-flex;background:var(--bg3);border:1px solid var(--line);border-radius:10px;padding:3px}
+.seg button{border:0;background:transparent;color:var(--mut);font:600 15px Barlow,sans-serif;padding:8px 14px;border-radius:8px;min-height:38px;cursor:pointer}
+.seg button.on{background:var(--acc);color:#fff}
+.tv{display:flex;flex-direction:column;gap:10px}
+.tvopt{display:flex;gap:14px;align-items:flex-start;padding:14px;border-radius:10px;background:var(--bg3);border:1px solid var(--line)}
+.tvopt .st{font-size:13px;margin-top:2px}
+.ok{color:var(--ok)}.warn{color:var(--warn)}
+ol.steps{margin:8px 0 0;padding-left:20px}ol.steps li{margin:4px 0}
+/* forms */
+label.f{display:flex;flex-direction:column;gap:6px;font-weight:600;font-size:15px}
+input[type=text],input[type=url],textarea,select{font:16px Barlow,sans-serif;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:11px 12px;min-height:44px;width:100%}
+textarea{min-height:120px;font:14px/1.5 ui-monospace,Menlo,monospace}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.sw{width:40px;height:40px;border-radius:10px;border:2px solid transparent;cursor:pointer}
+.sw.on{border-color:#fff}
+input[type=color]{width:56px;height:44px;border:1px solid var(--line);border-radius:10px;background:var(--bg);padding:4px}
+.tog{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+.tog input{width:22px;height:22px;accent-color:var(--acc)}
+.list{display:flex;flex-direction:column}
+.list div{display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+.list div:last-child{border:0}
+code.snip{display:block;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px;font-size:13px;overflow-wrap:anywhere}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(120px);background:var(--ink);color:var(--bg);padding:12px 18px;border-radius:10px;font-weight:600;transition:transform .25s,opacity .25s;z-index:20;opacity:0;pointer-events:none}
+.toast.on{transform:translateX(-50%);opacity:1}
+.note{font-size:14px;color:var(--mut);border-left:3px solid var(--acc);padding-left:12px}
+/* modo TV (só o player) */
+body.kiosk aside,body.kiosk .top{display:none}
+body.kiosk .app{grid-template-columns:1fr}
+body.kiosk .view{display:none}body.kiosk #v-ao-vivo{display:block}
+body.kiosk .only-admin{display:none}
+@media(max-width:900px){.g2{grid-template-columns:1fr}}
+@media(max-width:760px){
+ .app{grid-template-columns:1fr}
+ aside{position:fixed;inset:0 auto 0 0;width:280px;z-index:10;transform:translateX(-100%);transition:transform .25s}
+ body.nav aside{transform:none;box-shadow:0 0 0 100vmax rgba(0,0,0,.6)}
+ .top .menu-btn{display:inline-flex}
+ .stat .n{font-size:34px}
+}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+<aside id="side">
+  <div class="brand" id="brand"></div>
+  <nav id="nav"></nav>
+  <div class="onair"><span class="dot" id="sideDot"></span><span id="sideTxt">Sinal: verificando…</span></div>
+</aside>
+
+<main>
+  <div class="top">
+    <button class="btn ghost menu-btn" id="menuBtn" aria-label="Abrir menu"><svg class="i"><use href="#ic-menu"/></svg></button>
+    <div class="grow"><strong id="topName">TV Huntter News</strong> <span class="mut sm">· painel</span></div>
+    <a class="btn ghost" id="siteLink" href="#" target="_blank" rel="noopener"><svg class="i"><use href="#ic-ext"/></svg><span>Ver site</span></a>
+  </div>
+
+  <!-- INÍCIO -->
+  <section class="view band" id="v-inicio">
+    <div class="head">
+      <div><h1 id="hello">Olá, Administrador</h1><p class="mut" style="margin:6px 0 0">Tudo o que está no ar e o que precisa da sua atenção hoje.</p></div>
+      <a class="btn pri" href="#ao-vivo"><svg class="i"><use href="#ic-cast"/></svg>Transmitir para TV</a>
+    </div>
+    <div class="grid g2" style="margin-bottom:16px">
+      <div class="card" style="padding:0;overflow:hidden">
+        <div class="monitor" style="border:0;border-radius:0"><div class="ov" style="background:linear-gradient(135deg,#1b0606,#000)"><div><h2 id="dashTitle">Aqui TV Huntter News</h2><p class="mut sm" style="margin:8px 0 14px">Sinal de vídeo e rádio</p><a class="btn pri" href="#ao-vivo">Abrir o monitor ao vivo</a></div></div><span class="tally"><span class="dot" id="dashDot"></span><span id="dashTxt">VERIFICANDO</span></span></div>
+      </div>
+      <div class="card">
+        <h3>Atalhos</h3>
+        <div class="list sm" style="margin-top:8px" id="quick"></div>
+      </div>
+    </div>
+    <div class="grid g4" id="stats"></div>
+    <p class="mut sm" style="margin-top:10px">Números copiados do seu painel atual em 23/11/2026. Clique num cartão para abrir a lista no painel.</p>
+    <div class="grid g2" style="margin-top:16px">
+      <div class="card"><h3>Últimos usuários</h3><div class="list" id="users" style="margin-top:8px"></div></div>
+      <div class="card"><h3>Últimos comentários</h3><p class="mut">Nenhum comentário novo.</p><a class="btn" href="#" data-admin="/admin/communication/comments/manage" target="_blank" rel="noopener">Abrir comentários</a></div>
+    </div>
+  </section>
+
+  <!-- AO VIVO -->
+  <section class="view band" id="v-ao-vivo">
+    <div class="head only-admin">
+      <div><h1>Ao vivo e Smart TV</h1><p class="mut" style="margin:6px 0 0">Assista ao sinal e mande para a TV com um toque.</p></div>
+      <div class="seg" role="tablist" aria-label="Fonte"><button id="srcV" class="on">TV (vídeo)</button><button id="srcA">Rádio (áudio)</button></div>
+    </div>
+    <div class="grid g2">
+      <div>
+        <div class="monitor" id="mon">
+          <video id="vid" playsinline x-webkit-airplay="allow" preload="none"></video>
+          <div class="ov" id="ov"><div><button class="big" id="bigPlay" aria-label="Assistir"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button><h3 id="ovTitle">Assistir ao vivo</h3><p class="mut sm" id="ovMsg" style="margin:6px 0 0"></p></div></div>
+          <span class="tally"><span class="dot" id="monDot"></span><span id="monTxt">PARADO</span></span>
+          <div class="castbar" id="castBar" hidden></div>
+        </div>
+        <div class="ctrl">
+          <button class="btn" id="playBtn"><svg class="i"><use href="#ic-play"/></svg><span>Play</span></button>
+          <button class="btn" id="muteBtn" aria-label="Som"><svg class="i"><use href="#ic-vol"/></svg></button>
+          <input type="range" id="vol" min="0" max="1" step="0.05" value="1" aria-label="Volume">
+          <span class="grow"></span>
+          <button class="btn" id="pipBtn" aria-label="Janela flutuante"><svg class="i"><use href="#ic-pip"/></svg></button>
+          <button class="btn" id="fsBtn" aria-label="Tela cheia"><svg class="i"><use href="#ic-full"/></svg></button>
+          <button class="btn pri" id="castBtn"><svg class="i"><use href="#ic-cast"/></svg>Transmitir para TV</button>
+        </div>
+      </div>
+      <div class="card tv">
+        <h3>Enviar para a TV</h3>
+        <div class="tvopt"><svg class="i"><use href="#ic-cast"/></svg><div><strong>Chromecast / Google TV / Android TV</strong><div class="st" id="stCast">Verificando…</div><button class="btn" id="btnChrome" style="margin-top:8px">Escolher TV</button></div></div>
+        <div class="tvopt"><svg class="i"><use href="#ic-air"/></svg><div><strong>AirPlay</strong> <span class="mut sm">Apple TV e TVs Samsung, LG, Sony e Vizio compatíveis</span><div class="st" id="stAir">Verificando…</div><button class="btn" id="btnAir" style="margin-top:8px">Escolher TV</button></div></div>
+        <div class="tvopt"><svg class="i"><use href="#ic-tv"/></svg><div><strong>Outras Smart TVs</strong><div class="st mut">Espelhe a tela do celular: Android em “Transmitir tela”/“Smart View”, iPhone em “Espelhar tela”.</div></div></div>
+        <div class="castbar" style="position:static;background:none;padding:0" id="castInfo"></div>
+      </div>
+    </div>
+    <div class="grid g2 only-admin" style="margin-top:16px">
+      <div class="card">
+        <h3>Como o ouvinte transmite</h3>
+        <ol class="steps">
+          <li>Celular e TV na mesma rede Wi-Fi.</li>
+          <li>Android: abrir esta página no Chrome e tocar em <b>Transmitir para TV</b>. O sinal vai direto para a TV: o celular pode até bloquear a tela.</li>
+          <li>iPhone/iPad: abrir no Safari, tocar em <b>Transmitir</b> e escolher a Apple TV ou TV com AirPlay.</li>
+          <li>Computador: Chrome com Chromecast na rede, ou Safari no Mac com AirPlay.</li>
+        </ol>
+      </div>
+      <div class="card">
+        <h3>Botão “Assistir na TV” para o seu site</h3>
+        <p class="mut sm" style="margin:6px 0 10px">Abre só o player, sem o painel. Cole no seu site ou num post.</p>
+        <code class="snip" id="snip"></code>
+        <div class="row" style="margin-top:10px"><button class="btn" id="copySnip"><svg class="i"><use href="#ic-copy"/></svg>Copiar código</button><a class="btn ghost" href="#tv">Ver modo TV</a></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PUBLICAR -->
+  <section class="view band" id="v-publicar">
+    <div class="head"><div><h1>Conteúdo</h1><p class="mut" style="margin:6px 0 0">Tudo o que você publica, num lugar só. Cada cartão abre a área correspondente no painel atual.</p></div></div>
+    <h2 style="margin-bottom:12px">Publicar</h2>
+    <div class="grid g4" id="pub"></div>
+    <h2 style="margin:28px 0 12px">Comunicação com ouvintes</h2>
+    <div class="grid g4" id="com"></div>
+  </section>
+
+  <!-- APARÊNCIA -->
+  <section class="view band" id="v-aparencia">
+    <div class="head"><div><h1>Aparência e módulos</h1><p class="mut" style="margin:6px 0 0">Ajuste o painel do seu jeito. As mudanças aparecem na hora e ficam salvas neste navegador.</p></div>
+      <div class="row"><button class="btn" id="reset">Restaurar padrão</button><button class="btn pri" id="save">Salvar</button></div></div>
+    <div class="grid g2">
+      <div class="card grid" style="gap:16px">
+        <label class="f">Nome da emissora<input type="text" id="fNome"></label>
+        <label class="f">Chamada da tela inicial<input type="text" id="fSlogan"></label>
+        <label class="f">Seu nome no painel<input type="text" id="fAdmin"></label>
+        <div><div style="font-weight:600;margin-bottom:6px">Cor de destaque</div><div class="row" id="swatches"></div></div>
+        <div><div style="font-weight:600;margin-bottom:6px">Cor de fundo</div><div class="row" id="bgs"></div></div>
+        <label class="f">Logotipo (PNG ou JPG)<input type="file" id="fLogo" accept="image/*"></label>
+        <button class="btn ghost" id="noLogo" style="align-self:flex-start">Remover logotipo</button>
+      </div>
+      <div class="card">
+        <h3>Módulos visíveis</h3>
+        <p class="mut sm" style="margin:6px 0 4px">Esconda os cartões das áreas que você não usa.</p>
+        <div id="mods"></div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h3>Backup das configurações</h3>
+      <p class="mut sm" style="margin:6px 0 10px">Copie para guardar ou colar em outro computador.</p>
+      <textarea id="cfgTxt" aria-label="Configurações em texto"></textarea>
+      <div class="row" style="margin-top:10px"><button class="btn" id="copyCfg"><svg class="i"><use href="#ic-copy"/></svg>Copiar</button><button class="btn" id="loadCfg">Aplicar texto colado</button></div>
+    </div>
+  </section>
+
+  <!-- STREAMING -->
+  <section class="view band" id="v-streaming">
+    <div class="head"><div><h1>Sinal e streaming</h1><p class="mut" style="margin:6px 0 0">Endereços usados pelo player e pela transmissão para a TV.</p></div><button class="btn pri" id="saveS">Salvar</button></div>
+    <div class="grid g2">
+      <div class="card grid" style="gap:16px">
+        <label class="f">Sinal de vídeo (HLS .m3u8)<input type="url" id="fHls"></label>
+        <label class="f">Sinal da rádio (Icecast/Shoutcast)<input type="url" id="fAudio"></label>
+        <label class="f">Imagem de capa na TV (link https, opcional)<input type="url" id="fPoster" placeholder="https://…/capa.jpg"></label>
+        <label class="f">Endereço do site<input type="url" id="fSite"></label>
+        <label class="f">Endereço onde este painel ficará (para o botão “Assistir na TV”)<input type="url" id="fPainel" placeholder="https://seusite.com.br/tv/"></label>
+        <div class="row"><button class="btn" id="testV">Testar vídeo</button><button class="btn" id="testA">Testar rádio</button></div>
+      </div>
+      <div class="card">
+        <h3>O que já foi verificado</h3>
+        <div class="list sm" style="margin-top:8px">
+          <div><span>Vídeo em HLS (mxcast, canal 7104)</span><span class="ok">compatível</span></div>
+          <div><span>Liberação para outros sites (CORS)</span><span class="ok">liberado</span></div>
+          <div><span>Chromecast com o sinal de vídeo</span><span class="ok">suportado</span></div>
+          <div><span>Rádio em AAC+ (porta 7104)</span><span class="ok">no ar</span></div>
+          <div><span>AirPlay (iPhone, Mac)</span><span class="ok">suportado</span></div>
+        </div>
+        <p class="note" style="margin-top:14px">Para o Chromecast funcionar, este painel precisa estar num endereço https, como o seu próprio site.</p>
+      </div>
+    </div>
+  </section>
+</main>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+ <symbol id="ic-home" viewBox="0 0 24 24"><path d="M3 11l9-8 9 8M5 10v10h14V10"/></symbol>
+ <symbol id="ic-live" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><path d="M16.2 7.8a6 6 0 010 8.4M7.8 16.2a6 6 0 010-8.4M19 5a10 10 0 010 14M5 19A10 10 0 015 5"/></symbol>
+ <symbol id="ic-doc" viewBox="0 0 24 24"><path d="M14 3H6v18h12V7zM14 3v4h4M9 13h6M9 17h6"/></symbol>
+ <symbol id="ic-brush" viewBox="0 0 24 24"><path d="M12 3a9 9 0 100 18c1.5 0 2-1 2-2s-1-1.5-1-2.5S14 15 15 15h2a4 4 0 004-4c0-4.4-4-8-9-8z"/><circle cx="7.5" cy="11" r="1"/><circle cx="12" cy="7.5" r="1"/><circle cx="16.5" cy="10" r="1"/></symbol>
+ <symbol id="ic-sig" viewBox="0 0 24 24"><path d="M4 20h2v-4H4zM9 20h2v-8H9zM14 20h2V8h-2zM19 20h2V4h-2z"/></symbol>
+ <symbol id="ic-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.6 1.6 0 00-2.7 1.1V21a2 2 0 01-4 0v-.1A1.6 1.6 0 009 19.4a1.6 1.6 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1A1.6 1.6 0 003.6 14H3a2 2 0 010-4h.1A1.6 1.6 0 004.6 9a1.6 1.6 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1A1.6 1.6 0 009 4.6V3a2 2 0 014 0v.1a1.6 1.6 0 002.7 1.1l.1-.1a2 2 0 112.8 2.8l-.1.1A1.6 1.6 0 0019.4 9H21a2 2 0 010 4h-.1a1.6 1.6 0 00-1.5 1z"/></symbol>
+ <symbol id="ic-cast" viewBox="0 0 24 24"><path d="M2 8V6a2 2 0 012-2h16a2 2 0 012 2v12a2 2 0 01-2 2h-6M2 12a9 9 0 019 9M2 16a5 5 0 015 5M2 20h.01"/></symbol>
+ <symbol id="ic-air" viewBox="0 0 24 24"><path d="M5 17H4a2 2 0 01-2-2V5a2 2 0 012-2h16a2 2 0 012 2v10a2 2 0 01-2 2h-1M12 15l5 6H7z"/></symbol>
+ <symbol id="ic-tv" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M17 2l-5 5-5-5"/></symbol>
+ <symbol id="ic-play" viewBox="0 0 24 24"><path d="M7 4v16l13-8z"/></symbol>
+ <symbol id="ic-pause" viewBox="0 0 24 24"><path d="M7 4h3v16H7zM14 4h3v16h-3z"/></symbol>
+ <symbol id="ic-vol" viewBox="0 0 24 24"><path d="M11 5L6 9H2v6h4l5 4zM15.5 8.5a5 5 0 010 7M19 5a10 10 0 010 14"/></symbol>
+ <symbol id="ic-mute" viewBox="0 0 24 24"><path d="M11 5L6 9H2v6h4l5 4zM22 9l-6 6M16 9l6 6"/></symbol>
+ <symbol id="ic-pip" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><rect x="12" y="12" width="7" height="5"/></symbol>
+ <symbol id="ic-full" viewBox="0 0 24 24"><path d="M3 9V3h6M21 9V3h-6M3 15v6h6M21 15v6h-6"/></symbol>
+ <symbol id="ic-ext" viewBox="0 0 24 24"><path d="M14 3h7v7M21 3l-9 9M19 14v6H4V5h6"/></symbol>
+ <symbol id="ic-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 012-2h10"/></symbol>
+ <symbol id="ic-menu" viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></symbol>
+ <symbol id="ic-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="4"/><path d="M2 21a7 7 0 0114 0M16 4a4 4 0 010 8M22 21a7 7 0 00-4-6.3"/></symbol>
+</svg>
+
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
+<script>
+{
+const $=s=>document.querySelector(s);
+const ADMIN='https://radiohuntternews.bs7.com.br';
+const DEF={nome:'TV Huntter News',slogan:'Aqui TV Huntter News...',admin:'Administrador',cor:'#e10600',fundo:'#0e0f12',logo:'',
+  hls:'https://cs1.mxcast.com.br/7104/playlist.m3u8',audio:'https://stm1.mxcast.com.br:7104/stream',poster:'',site:ADMIN,painel:'',
+  mods:{publicar:true,streaming:true,aparencia:true}};
+const MODS=[['noticias','Notícias'],['podcasts','Podcasts'],['videos','Vídeos'],['fotos','Fotos'],['eventos','Eventos'],['grade','Grade de horários'],['enquetes','Enquetes'],['top','Top músicas'],['publicidade','Publicidades'],['sliders','Sliders'],['equipe','Equipe'],['pedidos','Pedido de músicas'],['chat','Bate-papo'],['comentarios','Comentários']];
+const PUB=[['noticias','Notícias',3,'/admin/publish/news/manage'],['podcasts','Podcasts',4,'/admin/publish/podcasts/manage'],['videos','Vídeos',4,'/admin/publish/videos/manage'],['fotos','Fotos',null,'/admin/publish/albums/manage'],['eventos','Eventos',9,'/admin/publish/events/manage'],['grade','Grade de horários',null,'/admin/publish/timetable/manage'],['enquetes','Enquetes',null,'/admin/publish/polls/manage'],['top','Top músicas',null,'/admin/publish/top-music/manage'],['publicidade','Publicidades',null,'/admin/publish/ads/manage'],['sliders','Sliders',null,'/admin/publish/sliders/manage'],['equipe','Equipe',5,'/admin/publish/team/manage']];
+const COM=[['pedidos','Pedido de músicas',2,'/admin/communication/music-request/manage'],['chat','Bate-papo',null,'/admin/communication/chat/manage'],['comentarios','Comentários',0,'/admin/communication/comments/manage'],['ouvintes','Ouvintes cadastrados',6,'/admin/users/clients/manage']];
+const USERS=['Paquito Elétrico','Ribão D Oludo','Mestre Sereno','Arnold Soares','Letto Carvalho'];
+const ACC=['#e10600','#ff3b30','#f97316','#eab308','#16a34a','#0ea5e9','#2563eb','#db2777'];
+const BGS=['#0e0f12','#111827','#140a0a','#0b1220','#18181b'];
+let cfg;
+const load=()=>{try{const s=JSON.parse(localStorage.getItem('thn-painel')||'null');cfg=s?{...DEF,...s,mods:{...DEF.mods,...(s.mods||{})}}:structuredClone(DEF)}catch(e){cfg=structuredClone(DEF)}};
+const store=()=>{try{localStorage.setItem('thn-painel',JSON.stringify(cfg))}catch(e){}};
+const toast=t=>{const el=$('#toast');el.textContent=t;el.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>el.classList.remove('on'),2200)};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const on=k=>cfg.mods[k]!==false;
+const ic=n=>`<svg class="i"><use href="#ic-${n}"/></svg>`;
+
+const VIEWS=[['inicio','Início','home'],['ao-vivo','Ao vivo e Smart TV','live'],['publicar','Conteúdo','doc'],['streaming','Sinal e streaming','sig'],['aparencia','Aparência','brush']];
+function render(){
+  const r=document.documentElement.style;r.setProperty('--acc',cfg.cor);r.setProperty('--bg',cfg.fundo);
+  r.setProperty('--bg2',`color-mix(in srgb,${cfg.fundo} 88%,#fff 4%)`);r.setProperty('--bg3',`color-mix(in srgb,${cfg.fundo} 80%,#fff 9%)`);
+  const parts=cfg.nome.trim().split(/\s+/);const last=parts.length>1?parts.pop():'';
+  $('#brand').innerHTML=cfg.logo?`<img src="${cfg.logo}" alt="${esc(cfg.nome)}">`:`<div class="mark">${esc(parts.join(' '))}<b>${esc(last)}</b></div>`;
+  $('#topName').textContent=cfg.nome;$('#hello').textContent='Olá, '+cfg.admin;$('#dashTitle').textContent=cfg.slogan;
+  $('#siteLink').href=cfg.site;document.title='Painel '+cfg.nome;
+  const cur=(location.hash||'#inicio').slice(1);
+  $('#nav').innerHTML=VIEWS.map(([k,t,i])=>`<a href="#${k}" class="${k===cur?'on':''}">${ic(i)}${t}</a>`).join('')+
+   `<div class="sep">Painel atual</div>`+
+   [['Usuários','users','/admin/users/administration/manage'],['Configurações gerais','gear','/admin/settings/general']].map(([t,i,u])=>`<a href="${ADMIN+u}" target="_blank" rel="noopener">${ic(i)}${t}</a>`).join('');
+  const card=([k,t,n,u])=>on(k)?`<a class="card stat" href="${ADMIN+u}" target="_blank" rel="noopener"><span class="mut sm">${t}</span><span class="n">${n??'—'}</span><span class="sm" style="color:var(--acc)">Gerenciar →</span></a>`:'';
+  $('#pub').innerHTML=PUB.map(card).join('');$('#com').innerHTML=COM.map(card).join('');
+  $('#stats').innerHTML=[...COM.slice(0,1),COM[3],...PUB.filter(p=>p[2]!=null),COM[2]].map(card).join('');
+  $('#quick').innerHTML=[['Nova notícia','/admin/publish/news/manage'],['Grade de horários','/admin/publish/timetable/manage'],['Pedidos de música','/admin/communication/music-request/manage'],['Player do site','/admin/settings/players']].map(([t,u])=>`<div><a href="${ADMIN+u}" target="_blank" rel="noopener">${t}</a><span class="mut">→</span></div>`).join('');
+  $('#users').innerHTML=USERS.map(u=>`<div><span>${u}</span><span class="mut sm">há 3 semanas</span></div>`).join('');
+  document.querySelectorAll('[data-admin]').forEach(a=>a.href=ADMIN+a.dataset.admin);
+  // forms
+  $('#fNome').value=cfg.nome;$('#fSlogan').value=cfg.slogan;$('#fAdmin').value=cfg.admin;
+  $('#fHls').value=cfg.hls;$('#fAudio').value=cfg.audio;$('#fPoster').value=cfg.poster;$('#fSite').value=cfg.site;$('#fPainel').value=cfg.painel||'';
+  $('#swatches').innerHTML=ACC.map(c=>`<button class="sw ${c===cfg.cor?'on':''}" style="background:${c}" data-c="${c}" aria-label="Cor ${c}"></button>`).join('')+`<input type="color" id="fCor" value="${cfg.cor}" aria-label="Outra cor">`;
+  $('#bgs').innerHTML=BGS.map(c=>`<button class="sw ${c===cfg.fundo?'on':''}" style="background:${c};border-color:${c===cfg.fundo?'#fff':'#444'}" data-b="${c}" aria-label="Fundo ${c}"></button>`).join('');
+  $('#mods').innerHTML=MODS.map(([k,t])=>`<label class="tog"><span>${t}</span><input type="checkbox" data-m="${k}" ${on(k)?'checked':''}></label>`).join('');
+  $('#cfgTxt').value=JSON.stringify({...cfg,logo:cfg.logo?'(imagem)':''},null,1);
+  const here=/^https:/.test(location.protocol)&&!/claude|anthropic|usercontent/.test(location.host)?location.href.split('#')[0]:'';const url=(cfg.painel||here||'https://seusite.com.br/tv/').replace(/#.*$/,'')+'#tv';
+  $('#snip').textContent=`<a href="${url}" target="_blank" style="display:inline-block;background:${cfg.cor};color:#fff;padding:12px 20px;border-radius:8px;font-weight:700;text-decoration:none">📺 Assistir na TV</a>`;
+}
+function route(){
+  const h=(location.hash||'#inicio').slice(1);
+  document.body.classList.toggle('kiosk',h==='tv');document.body.classList.remove('nav');
+  const v=h==='tv'?'ao-vivo':(VIEWS.some(x=>x[0]===h)?h:'inicio');
+  document.querySelectorAll('.view').forEach(s=>s.classList.toggle('on',s.id==='v-'+v));
+  document.querySelectorAll('#nav a').forEach(a=>a.classList.toggle('on',a.getAttribute('href')==='#'+v));
+  window.scrollTo(0,0);
+}
+
+/* ---------- PLAYER ---------- */
+const vid=$('#vid');let hls=null,mode='v',playing=false;
+const srcUrl=()=>mode==='v'?cfg.hls:cfg.audio;
+function setTally(state,txt){for(const [d,t] of [['#monDot','#monTxt'],['#dashDot','#dashTxt'],['#sideDot','#sideTxt']]){$(d).classList.toggle('live',state==='live');}
+  $('#monTxt').textContent=txt;$('#dashTxt').textContent=state==='live'?'NO AR':txt;$('#sideTxt').textContent=state==='live'?'Sinal: no ar':'Sinal: '+txt.toLowerCase();}
+function ovMsg(title,msg,show=true){$('#ov').hidden=!show;$('#ovTitle').textContent=title;$('#ovMsg').textContent=msg||''}
+function attach(){
+  if(hls){hls.destroy();hls=null}
+  vid.removeAttribute('src');vid.load();
+  const u=srcUrl();vid.poster=mode==='a'?'':'';
+  if(mode==='v'&&!vid.canPlayType('application/vnd.apple.mpegurl')&&window.Hls&&Hls.isSupported()){
+    hls=new Hls({lowLatencyMode:true,liveSyncDurationCount:3});hls.loadSource(u);hls.attachMedia(vid);
+    hls.on(Hls.Events.ERROR,(e,d)=>{if(d.fatal){fail()}});
+  }else vid.src=u;
+}
+function fail(){playing=false;setTally('off','SEM SINAL');ovMsg('Não foi possível carregar o sinal','Confira o endereço em “Sinal e streaming”. Nesta prévia do Claude o vídeo é bloqueado; no seu site ele toca normalmente.')}
+async function play(){
+  if(castSession()){castCtrl('play');return}
+  if(!vid.src&&!hls)attach();
+  ovMsg('Conectando…','',true);
+  try{await vid.play();}catch(e){if(e.name!=='AbortError')fail()}
+}
+function stop(){vid.pause();}
+vid.addEventListener('playing',()=>{playing=true;ovMsg('','',false);setTally('live','AO VIVO');updBtns()});
+vid.addEventListener('pause',()=>{playing=false;setTally('off','PAUSADO');if(!castSession())ovMsg('Pausado','',true);updBtns()});
+vid.addEventListener('waiting',()=>setTally('off','CARREGANDO'));
+vid.addEventListener('error',()=>{if(!hls)fail()});
+function updBtns(){const p=castSession()?remote.isPaused===false:playing;$('#playBtn').innerHTML=ic(p?'pause':'play')+`<span>${p?'Pausar':'Play'}</span>`;
+  $('#muteBtn').innerHTML=ic(vid.muted?'mute':'vol')}
+$('#playBtn').onclick=()=>{if(castSession()){castCtrl('toggle');return}playing?stop():play()};
+$('#bigPlay').onclick=play;
+$('#muteBtn').onclick=()=>{vid.muted=!vid.muted;updBtns()};
+$('#vol').oninput=e=>{const v=+e.target.value;if(castSession()){remote.volumeLevel=v;remoteCtl.setVolumeLevel()}else{vid.volume=v;vid.muted=v===0;updBtns()}};
+$('#fsBtn').onclick=()=>{const m=$('#mon');try{document.fullscreenElement?document.exitFullscreen():(m.requestFullscreen?m.requestFullscreen():vid.webkitEnterFullscreen&&vid.webkitEnterFullscreen())}catch(e){}};
+$('#pipBtn').onclick=async()=>{try{document.pictureInPictureElement?await document.exitPictureInPicture():await vid.requestPictureInPicture()}catch(e){toast('Janela flutuante indisponível neste navegador')}};
+function setMode(m){const was=playing;mode=m;$('#srcV').classList.toggle('on',m==='v');$('#srcA').classList.toggle('on',m==='a');
+  $('#mon').style.background=m==='a'?`radial-gradient(circle at 50% 40%,${cfg.cor}55,#000 70%)`:'#000';
+  attach();if(castSession())castLoad();else if(was)play();else{setTally('off','PARADO');ovMsg(m==='v'?'Assistir ao vivo':'Ouvir a rádio','',true)}}
+$('#srcV').onclick=()=>setMode('v');$('#srcA').onclick=()=>setMode('a');
+
+/* ---------- CHROMECAST ---------- */
+let castOK=false,ctx=null,remote=null,remoteCtl=null;
+const castSession=()=>ctx&&ctx.getCurrentSession();
+function castStatus(t,cls){$('#stCast').innerHTML=`<span class="${cls||'mut'}">${t}</span>`}
+window.__onGCastApiAvailable=ok=>{
+  if(!ok){castStatus('Disponível no Chrome (Android ou computador).','mut');return}
+  ctx=cast.framework.CastContext.getInstance();
+  ctx.setOptions({receiverApplicationId:chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,autoJoinPolicy:chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED});
+  castOK=true;remote=new cast.framework.RemotePlayer();remoteCtl=new cast.framework.RemotePlayerController(remote);
+  const S=cast.framework.CastState;
+  const upd=s=>{if(s===S.NO_DEVICES_AVAILABLE)castStatus('Nenhuma TV encontrada no Wi-Fi.','warn');else if(s===S.NOT_CONNECTED)castStatus('TV disponível. Toque em Escolher TV.','ok');else if(s===S.CONNECTING)castStatus('Conectando…','warn');else castStatus('Conectado a '+esc(castSession()?.getCastDevice().friendlyName||'TV'),'ok')};
+  ctx.addEventListener(cast.framework.CastContextEventType.CAST_STATE_CHANGED,e=>upd(e.castState));upd(ctx.getCastState());
+  ctx.addEventListener(cast.framework.CastContextEventType.SESSION_STATE_CHANGED,e=>{
+    const SS=cast.framework.SessionState;
+    if(e.sessionState===SS.SESSION_STARTED)castLoad();
+    if(e.sessionState===SS.SESSION_RESUMED)castBar();
+    if(e.sessionState===SS.SESSION_ENDED){$('#castBar').hidden=true;$('#castInfo').innerHTML='';setTally('off','PARADO');ovMsg('Transmissão encerrada','Toque para continuar aqui.',true);updBtns()}});
+  remoteCtl.addEventListener(cast.framework.RemotePlayerEventType.IS_PAUSED_CHANGED,updBtns);
+};
+function castLoad(){
+  const s=castSession();if(!s)return;
+  const mi=new chrome.cast.media.MediaInfo(srcUrl(),mode==='v'?'application/x-mpegURL':'audio/aac');
+  mi.streamType=chrome.cast.media.StreamType.LIVE;
+  if(mode==='v'&&chrome.cast.media.HlsSegmentFormat){mi.hlsSegmentFormat=chrome.cast.media.HlsSegmentFormat.TS;if(chrome.cast.media.HlsVideoSegmentFormat)mi.hlsVideoSegmentFormat=chrome.cast.media.HlsVideoSegmentFormat.MPEG2_TS}
+  const md=new chrome.cast.media.GenericMediaMetadata();md.title=cfg.nome;md.subtitle=mode==='v'?'Ao vivo na TV':'Rádio ao vivo';
+  if(/^https:\/\//.test(cfg.poster))md.images=[new chrome.cast.Image(cfg.poster)];mi.metadata=md;
+  const rq=new chrome.cast.media.LoadRequest(mi);rq.autoplay=true;
+  setTally('off','ENVIANDO');
+  s.loadMedia(rq).then(()=>{vid.pause();castBar();toast('Transmitindo para a TV')},err=>{toast('A TV recusou o sinal: '+(err&&err.code||'erro'))});
+}
+function castBar(){const n=castSession()?.getCastDevice().friendlyName||'TV';
+  $('#castBar').hidden=false;$('#castBar').innerHTML=`<strong>Transmitindo para ${esc(n)}</strong> · use os botões abaixo como controle remoto`;
+  ovMsg('Na sua TV agora',n,true);setTally('live','NA TV');
+  $('#castInfo').innerHTML=`<button class="btn" id="stopCast">Parar transmissão</button>`;$('#stopCast').onclick=()=>ctx.endCurrentSession(true);updBtns()}
+function castCtrl(a){if(remoteCtl)remoteCtl.playOrPause()}
+function pickChrome(){
+  if(castOK){ctx.requestSession().catch(e=>{if(e!=='cancel'&&e?.code!=='cancel')toast('Não foi possível conectar à TV')});return true}
+  if(vid.remote&&!hls){if(!vid.src)attach();vid.remote.prompt().catch(()=>toast('Nenhuma TV encontrada'));return true}
+  return false;
+}
+(function(){const s=document.createElement('script');s.src='https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1';
+  s.onerror=()=>castStatus('Indisponível aqui. Funciona no Chrome quando o painel está no seu site (https).','warn');document.head.appendChild(s);
+  setTimeout(()=>{if(!castOK&&/Verificando/.test($('#stCast').textContent))castStatus('Abra no Chrome (Android ou computador) para usar.','mut')},4000)})();
+
+/* ---------- AIRPLAY ---------- */
+let airOK=false;
+if(window.WebKitPlaybackTargetAvailabilityEvent){vid.addEventListener('webkitplaybacktargetavailabilitychanged',e=>{airOK=e.availability==='available';$('#stAir').innerHTML=airOK?'<span class="ok">TV com AirPlay disponível.</span>':'<span class="warn">Nenhuma TV AirPlay no Wi-Fi.</span>'})}
+else $('#stAir').innerHTML='<span class="mut">Disponível no Safari (iPhone, iPad e Mac).</span>';
+function pickAir(){if(vid.webkitShowPlaybackTargetPicker){if(!vid.src&&!hls)attach();vid.webkitShowPlaybackTargetPicker();return true}return false}
+$('#btnChrome').onclick=()=>{if(!pickChrome())toast('Abra no Chrome para usar o Chromecast')};
+$('#btnAir').onclick=()=>{if(!pickAir())toast('Abra no Safari do iPhone, iPad ou Mac')};
+$('#castBtn').onclick=()=>{if(pickAir())return;if(pickChrome())return;toast('Use “Espelhar tela” do celular — veja as opções ao lado')};
+
+/* ---------- AJUSTES ---------- */
+const saveAll=()=>{store();render();toast('Salvo')};
+document.addEventListener('click',e=>{const c=e.target.closest('[data-c]'),b=e.target.closest('[data-b]');
+  if(c){cfg.cor=c.dataset.c;saveAll()}if(b){cfg.fundo=b.dataset.b;saveAll()}});
+document.addEventListener('input',e=>{if(e.target.id==='fCor'){cfg.cor=e.target.value;document.documentElement.style.setProperty('--acc',cfg.cor)}});
+document.addEventListener('change',e=>{if(e.target.id==='fCor')saveAll();if(e.target.dataset.m){cfg.mods[e.target.dataset.m]=e.target.checked;saveAll()}});
+for(const [id,k] of [['#fNome','nome'],['#fSlogan','slogan'],['#fAdmin','admin']])$(id).addEventListener('change',e=>{cfg[k]=e.target.value.trim()||DEF[k];saveAll()});
+$('#save').onclick=saveAll;
+$('#saveS').onclick=()=>{cfg.hls=$('#fHls').value.trim()||DEF.hls;cfg.audio=$('#fAudio').value.trim()||DEF.audio;cfg.poster=$('#fPoster').value.trim();cfg.site=$('#fSite').value.trim()||DEF.site;cfg.painel=$('#fPainel').value.trim();saveAll();attach()};
+$('#reset').onclick=()=>{cfg=structuredClone(DEF);saveAll()};
+$('#fLogo').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{const im=new Image();im.onload=()=>{const c=document.createElement('canvas'),k=Math.min(1,300/im.width);c.width=im.width*k;c.height=im.height*k;c.getContext('2d').drawImage(im,0,0,c.width,c.height);cfg.logo=c.toDataURL('image/png');saveAll()};im.src=r.result};r.readAsDataURL(f)};
+$('#noLogo').onclick=()=>{cfg.logo='';saveAll()};
+const copy=async t=>{try{await navigator.clipboard.writeText(t);toast('Copiado')}catch(e){toast('Selecione o texto e copie manualmente')}};
+$('#copyCfg').onclick=()=>copy(JSON.stringify(cfg));
+$('#copySnip').onclick=()=>copy($('#snip').textContent);
+$('#loadCfg').onclick=()=>{try{const n=JSON.parse($('#cfgTxt').value);if(n.logo==='(imagem)')n.logo=cfg.logo;cfg={...DEF,...n,mods:{...DEF.mods,...(n.mods||{})}};saveAll()}catch(e){toast('Texto inválido')}};
+$('#testV').onclick=()=>{location.hash='#ao-vivo';setMode('v');play()};
+$('#testA').onclick=()=>{location.hash='#ao-vivo';setMode('a');play()};
+$('#menuBtn').onclick=()=>document.body.classList.toggle('nav');
+document.addEventListener('keydown',e=>{if(e.key==='Escape')document.body.classList.remove('nav')});
+$('#side').addEventListener('click',e=>{if(e.target===$('#side'))document.body.classList.remove('nav')});
+
+load();render();route();window.addEventListener('hashchange',()=>{route();});
+setTally('off','PARADO');ovMsg('Assistir ao vivo','',true);updBtns();
+}
+</script>
+</body>
+</html>
