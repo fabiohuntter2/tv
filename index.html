@@ -63,6 +63,9 @@ main{padding:0 0 60px}
 /* monitor */
 .monitor{position:relative;background:#000;border-radius:var(--r);overflow:hidden;aspect-ratio:16/9;border:1px solid var(--line)}
 .monitor video{position:absolute;inset:0;width:100%;height:100%;background:#000}
+.monitor .art{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.monitor .art[hidden]{display:none}
+.monitor.radio .ov{background:linear-gradient(transparent 40%,rgba(0,0,0,.75))}
 .tally{position:absolute;top:14px;left:14px;display:flex;align-items:center;gap:8px;background:rgba(0,0,0,.6);padding:6px 12px;border-radius:999px;font:700 14px "Barlow Condensed",Barlow,sans-serif;letter-spacing:.5px}
 .ov{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:24px;background:radial-gradient(ellipse at center,rgba(0,0,0,.35),rgba(0,0,0,.85))}
 .ov[hidden]{display:none}
@@ -168,6 +171,7 @@ body.tvdev .btn:focus,body.tvdev .ov .big:focus{outline:4px solid #fff;outline-o
       <div>
         <div class="monitor" id="mon">
           <video id="vid" playsinline x-webkit-airplay="allow" preload="none"></video>
+          <img id="radioArt" class="art" src="banner-radio.jpg" alt="TV Huntter News — rádio ao vivo" hidden>
           <div class="ov" id="ov"><div><button class="big" id="bigPlay" aria-label="Assistir"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button><h3 id="ovTitle">Assistir ao vivo</h3><p class="mut sm" id="ovMsg" style="margin:6px 0 0"></p></div></div>
           <span class="tally"><span class="dot" id="monDot"></span><span id="monTxt">PARADO</span></span>
           <div class="castbar" id="castBar" hidden></div>
@@ -369,7 +373,7 @@ function ovMsg(title,msg,show=true){$('#ov').hidden=!show;$('#ovTitle').textCont
 function attach(){
   if(hls){hls.destroy();hls=null}
   vid.removeAttribute('src');vid.load();
-  const u=srcUrl();vid.poster=mode==='a'?'':'';
+  const u=srcUrl();vid.poster=mode==='a'?'banner-radio.jpg':'';
   const apple=APPLE&&vid.canPlayType('application/vnd.apple.mpegurl');
   if(mode==='v'&&!apple&&window.Hls&&Hls.isSupported()){
     hls=new Hls({liveSyncDurationCount:3,maxBufferLength:20});hls.loadSource(u);hls.attachMedia(vid);
@@ -402,7 +406,7 @@ $('#vol').oninput=e=>{const v=+e.target.value;if(castSession()){remote.volumeLev
 $('#fsBtn').onclick=()=>{const m=$('#mon');try{document.fullscreenElement?document.exitFullscreen():(m.requestFullscreen?m.requestFullscreen():vid.webkitEnterFullscreen&&vid.webkitEnterFullscreen())}catch(e){}};
 $('#pipBtn').onclick=async()=>{try{document.pictureInPictureElement?await document.exitPictureInPicture():await vid.requestPictureInPicture()}catch(e){toast('Janela flutuante indisponível neste navegador')}};
 function setMode(m){const was=playing;mode=m;$('#srcV').classList.toggle('on',m==='v');$('#srcA').classList.toggle('on',m==='a');
-  $('#mon').style.background=m==='a'?`radial-gradient(circle at 50% 40%,${cfg.cor}55,#000 70%)`:'#000';
+  $('#radioArt').hidden=m!=='a';$('#mon').classList.toggle('radio',m==='a');
   attach();if(castSession())castLoad();else if(was)play();else{setTally('off','PARADO');ovMsg(m==='v'?'Assistir ao vivo':'Ouvir a rádio','',true)}}
 $('#srcV').onclick=()=>setMode('v');$('#srcA').onclick=()=>setMode('a');
 
@@ -440,7 +444,7 @@ async function castLoad(){
   mi.streamType=chrome.cast.media.StreamType.LIVE;
   if(mode==='v'&&castTry<2&&chrome.cast.media.HlsSegmentFormat){mi.hlsSegmentFormat=chrome.cast.media.HlsSegmentFormat.TS;if(chrome.cast.media.HlsVideoSegmentFormat)mi.hlsVideoSegmentFormat=chrome.cast.media.HlsVideoSegmentFormat.MPEG2_TS}
   const md=new chrome.cast.media.GenericMediaMetadata();md.title=cfg.nome;md.subtitle=mode==='v'?'Ao vivo na TV':'Rádio ao vivo';
-  if(/^https:\/\//.test(cfg.poster))md.images=[new chrome.cast.Image(cfg.poster)];mi.metadata=md;
+  const art=mode==='a'?new URL('banner-radio.jpg',location.href).href:cfg.poster;if(/^https:\/\//.test(art))md.images=[new chrome.cast.Image(art)];mi.metadata=md;
   const rq=new chrome.cast.media.LoadRequest(mi);rq.autoplay=true;
   castState('Enviando o sinal para a TV…'+(castTry?` (tentativa ${castTry+1})`:''));
   try{await s.loadMedia(rq);vid.pause();castBar();watchCast()}
