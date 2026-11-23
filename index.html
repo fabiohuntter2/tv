@@ -390,7 +390,7 @@ async function play(){
 }
 function stop(){vid.pause();}
 vid.addEventListener('playing',()=>{playing=true;ovMsg('','',false);setTally('live','AO VIVO');updBtns()});
-vid.addEventListener('pause',()=>{playing=false;setTally('off','PAUSADO');if(!castSession())ovMsg('Pausado','',true);updBtns()});
+vid.addEventListener('pause',()=>{playing=false;if(castSession()){updBtns();return}setTally('off','PAUSADO');if(!castSession())ovMsg('Pausado','',true);updBtns()});
 vid.addEventListener('waiting',()=>setTally('off','CARREGANDO'));
 vid.addEventListener('error',()=>{if(!hls)fail()});
 function updBtns(){const p=castSession()?remote.isPaused===false:playing;$('#playBtn').innerHTML=ic(p?'pause':'play')+`<span>${p?'Pausar':'Play'}</span>`;
@@ -420,26 +420,48 @@ window.__onGCastApiAvailable=ok=>{
   ctx.addEventListener(cast.framework.CastContextEventType.CAST_STATE_CHANGED,e=>upd(e.castState));upd(ctx.getCastState());
   ctx.addEventListener(cast.framework.CastContextEventType.SESSION_STATE_CHANGED,e=>{
     const SS=cast.framework.SessionState;
-    if(e.sessionState===SS.SESSION_STARTED)castLoad();
-    if(e.sessionState===SS.SESSION_RESUMED)castBar();
+    if(e.sessionState===SS.SESSION_STARTED){castTry=0;castWatched=null;castBar();castLoad()}
+    if(e.sessionState===SS.SESSION_RESUMED){castBar();watchCast()}
     if(e.sessionState===SS.SESSION_ENDED){$('#castBar').hidden=true;$('#castInfo').innerHTML='';setTally('off','PARADO');ovMsg('Transmissão encerrada','Toque para continuar aqui.',true);updBtns()}});
   remoteCtl.addEventListener(cast.framework.RemotePlayerEventType.IS_PAUSED_CHANGED,updBtns);
 };
-function castLoad(){
+let castTry=0,castVariant='';
+async function castVariantUrl(){
+  try{const r=await fetch(cfg.hls,{cache:'no-store'});const t=await r.text();const l=t.split(/\r?\n/).find(x=>x&&!x.startsWith('#'));
+    return l?new URL(l,cfg.hls).href:''}catch(e){return ''}}
+async function castLoad(){
   const s=castSession();if(!s)return;
-  const mi=new chrome.cast.media.MediaInfo(srcUrl(),mode==='v'?'application/x-mpegURL':'audio/aac');
+  // tentativas para TVs diferentes: 0 = HLS padrão, 1 = lista direta do canal, 2 = tipo alternativo
+  let url=srcUrl(),type=mode==='v'?'application/x-mpegURL':'audio/aac';
+  if(mode==='v'&&castTry===1){castVariant=castVariant||await castVariantUrl();if(castVariant)url=castVariant}
+  if(mode==='v'&&castTry===2){type='application/vnd.apple.mpegurl';url=castVariant||url}
+  if(mode==='a'&&castTry>=1)type='audio/mpeg';
+  const mi=new chrome.cast.media.MediaInfo(url,type);mi.contentUrl=url;
   mi.streamType=chrome.cast.media.StreamType.LIVE;
-  if(mode==='v'&&chrome.cast.media.HlsSegmentFormat){mi.hlsSegmentFormat=chrome.cast.media.HlsSegmentFormat.TS;if(chrome.cast.media.HlsVideoSegmentFormat)mi.hlsVideoSegmentFormat=chrome.cast.media.HlsVideoSegmentFormat.MPEG2_TS}
+  if(mode==='v'&&castTry<2&&chrome.cast.media.HlsSegmentFormat){mi.hlsSegmentFormat=chrome.cast.media.HlsSegmentFormat.TS;if(chrome.cast.media.HlsVideoSegmentFormat)mi.hlsVideoSegmentFormat=chrome.cast.media.HlsVideoSegmentFormat.MPEG2_TS}
   const md=new chrome.cast.media.GenericMediaMetadata();md.title=cfg.nome;md.subtitle=mode==='v'?'Ao vivo na TV':'Rádio ao vivo';
   if(/^https:\/\//.test(cfg.poster))md.images=[new chrome.cast.Image(cfg.poster)];mi.metadata=md;
   const rq=new chrome.cast.media.LoadRequest(mi);rq.autoplay=true;
-  setTally('off','ENVIANDO');
-  s.loadMedia(rq).then(()=>{vid.pause();castBar();toast('Transmitindo para a TV')},err=>{toast('A TV recusou o sinal: '+(err&&err.code||'erro'))});
+  castState('Enviando o sinal para a TV…'+(castTry?` (tentativa ${castTry+1})`:''));
+  try{await s.loadMedia(rq);vid.pause();castBar();watchCast()}
+  catch(err){castRetry('a TV recusou ('+(err&&err.code||'erro')+')')}
 }
+function castRetry(why){const max=mode==='v'?2:1;
+  if(castTry<max){castTry++;castLoad()}else{castTry=0;castState('A TV não conseguiu abrir o sinal: '+why+'. Use o navegador da TV ou o espelhamento.','warn')}}
+function castState(t,cls){const el=$('#castMsg');if(el)el.innerHTML=`<span class="${cls||'mut'}">${t}</span>`}
+let castWatched=null;
+function watchCast(){const m=castSession()?.getMediaSession();if(!m||castWatched===m)return;castWatched=m;
+  m.addUpdateListener(alive=>{const st=m.playerState,P=chrome.cast.media.PlayerState;
+    if(st===P.PLAYING){castTry=0;castState('Tocando na TV.','ok');setTally('live','NA TV')}
+    else if(st===P.BUFFERING)castState('A TV está carregando o sinal…');
+    else if(st===P.PAUSED)castState('Pausado na TV.');
+    else if(st===P.IDLE&&m.idleReason===chrome.cast.media.IdleReason.ERROR){castWatched=null;castRetry('erro ao tocar')}
+    updBtns()})}
 function castBar(){const n=castSession()?.getCastDevice().friendlyName||'TV';
-  $('#castBar').hidden=false;$('#castBar').innerHTML=`<strong>Transmitindo para ${esc(n)}</strong> · use os botões abaixo como controle remoto`;
+  $('#castBar').hidden=true;
   ovMsg('Na sua TV agora',n,true);setTally('live','NA TV');
-  $('#castInfo').innerHTML=`<button class="btn" id="stopCast">Parar transmissão</button>`;$('#stopCast').onclick=()=>ctx.endCurrentSession(true);updBtns()}
+  $('#castInfo').innerHTML=`<div id="castMsg" class="sm" style="margin-bottom:8px"></div><div class="row"><button class="btn" id="retryCast">Reenviar sinal</button><button class="btn" id="stopCast">Parar transmissão</button></div>`;
+  $('#stopCast').onclick=()=>ctx.endCurrentSession(true);$('#retryCast').onclick=()=>{castTry=0;castWatched=null;castLoad()};updBtns()}
 function castCtrl(a){if(remoteCtl)remoteCtl.playOrPause()}
 function pickChrome(){
   if(castOK){ctx.requestSession().catch(e=>{if(e!=='cancel'&&e?.code!=='cancel')toast('Não foi possível conectar à TV')});return true}
