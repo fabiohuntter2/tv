@@ -103,6 +103,13 @@ body.kiosk .app{grid-template-columns:1fr}
 body.kiosk .view{display:none}body.kiosk #v-ao-vivo{display:block}
 body.kiosk .only-admin{display:none}
 @media(max-width:900px){.g2{grid-template-columns:1fr}}
+/* aberto no navegador da Smart TV */
+body.tvdev.kiosk .band{padding:0}
+body.tvdev.kiosk #v-ao-vivo>.grid{display:block}
+body.tvdev.kiosk .card.tv,body.tvdev.kiosk #castBtn,body.tvdev.kiosk #pipBtn{display:none}
+body.tvdev.kiosk .monitor{aspect-ratio:auto;height:calc(100vh - 76px);border-radius:0;border:0}
+body.tvdev.kiosk .ctrl{padding:0 24px}
+body.tvdev .btn:focus,body.tvdev .ov .big:focus{outline:4px solid #fff;outline-offset:3px}
 @media(max-width:760px){
  .app{grid-template-columns:1fr}
  aside{position:fixed;inset:0 auto 0 0;width:280px;z-index:10;transform:translateX(-100%);transition:transform .25s}
@@ -178,8 +185,8 @@ body.kiosk .only-admin{display:none}
       <div class="card tv">
         <h3>Enviar para a TV</h3>
         <div class="tvopt"><svg class="i"><use href="#ic-cast"/></svg><div><strong>Chromecast / Google TV / Android TV</strong><div class="st" id="stCast">Verificando…</div><button class="btn" id="btnChrome" style="margin-top:8px">Escolher TV</button></div></div>
-        <div class="tvopt"><svg class="i"><use href="#ic-air"/></svg><div><strong>AirPlay</strong> <span class="mut sm">Apple TV e TVs Samsung, LG, Sony e Vizio compatíveis</span><div class="st" id="stAir">Verificando…</div><button class="btn" id="btnAir" style="margin-top:8px">Escolher TV</button></div></div>
-        <div class="tvopt"><svg class="i"><use href="#ic-tv"/></svg><div><strong>Outras Smart TVs</strong><div class="st mut">Espelhe a tela do celular: Android em “Transmitir tela”/“Smart View”, iPhone em “Espelhar tela”.</div></div></div>
+        <div class="tvopt"><svg class="i"><use href="#ic-air"/></svg><div><strong>AirPlay</strong> <span class="mut sm">Apple TV e TVs LG e Samsung a partir de 2018 (ative AirPlay nas configurações da TV)</span><div class="st" id="stAir">Verificando…</div><button class="btn" id="btnAir" style="margin-top:8px">Escolher TV</button></div></div>
+        <div class="tvopt"><svg class="i"><use href="#ic-tv"/></svg><div><strong>Outras Smart TVs</strong><div class="st mut"><b>LG, Samsung e outras:</b> abra o navegador da própria TV e digite <b id="tvAddr">fabiohuntter2.github.io/tv</b>. O player abre sozinho em tela cheia. Ou espelhe o celular: Android em “Transmitir tela”/“Smart View”, iPhone em “Espelhar tela”.</div></div></div>
         <div class="castbar" style="position:static;background:none;padding:0" id="castInfo"></div>
       </div>
     </div>
@@ -295,6 +302,10 @@ body.kiosk .only-admin{display:none}
 {
 const $=s=>document.querySelector(s);
 const ADMIN='https://radiohuntternews.bs7.com.br';
+const UA=navigator.userAgent;
+const ISTV=/Web0S|webOS|NetCast|SmartTV|SMART-TV|Tizen|HbbTV|BRAVIA|VIDAA|AFT[A-Z]|GoogleTV|Android TV|CrKey/i.test(UA);
+const APPLE=/iPhone|iPad|iPod|Macintosh/.test(UA)&&!/Chrome|CriOS|Android/.test(UA);
+if(ISTV){document.body.classList.add('tvdev');if(!location.hash||location.hash==='#inicio')history.replaceState(null,'','#tv')}
 const DEF={nome:'TV Huntter News',slogan:'Aqui TV Huntter News...',admin:'Administrador',cor:'#e10600',fundo:'#0e0f12',logo:'',
   hls:'https://cs1.mxcast.com.br/7104/playlist.m3u8',audio:'https://stm1.mxcast.com.br:7104/stream',poster:'',site:ADMIN,painel:'',
   mods:{publicar:true,streaming:true,aparencia:true}};
@@ -359,9 +370,12 @@ function attach(){
   if(hls){hls.destroy();hls=null}
   vid.removeAttribute('src');vid.load();
   const u=srcUrl();vid.poster=mode==='a'?'':'';
-  if(mode==='v'&&!vid.canPlayType('application/vnd.apple.mpegurl')&&window.Hls&&Hls.isSupported()){
-    hls=new Hls({lowLatencyMode:true,liveSyncDurationCount:3});hls.loadSource(u);hls.attachMedia(vid);
-    hls.on(Hls.Events.ERROR,(e,d)=>{if(d.fatal){fail()}});
+  const apple=APPLE&&vid.canPlayType('application/vnd.apple.mpegurl');
+  if(mode==='v'&&!apple&&window.Hls&&Hls.isSupported()){
+    hls=new Hls({liveSyncDurationCount:3,maxBufferLength:20});hls.loadSource(u);hls.attachMedia(vid);
+    hls.on(Hls.Events.ERROR,(e,d)=>{if(!d.fatal)return;
+      if(d.type===Hls.ErrorTypes.MEDIA_ERROR&&!hls._rec){hls._rec=1;hls.recoverMediaError();return}
+      hls.destroy();hls=null;if(vid.canPlayType('application/vnd.apple.mpegurl')||ISTV){vid.src=u;vid.play().catch(fail)}else fail()});
   }else vid.src=u;
 }
 function fail(){playing=false;setTally('off','SEM SINAL');ovMsg('Não foi possível carregar o sinal','Confira o endereço em “Sinal e streaming”. Nesta prévia do Claude o vídeo é bloqueado; no seu site ele toca normalmente.')}
@@ -369,7 +383,10 @@ async function play(){
   if(castSession()){castCtrl('play');return}
   if(!vid.src&&!hls)attach();
   ovMsg('Conectando…','',true);
-  try{await vid.play();}catch(e){if(e.name!=='AbortError')fail()}
+  try{await vid.play();}catch(e){
+    if(e.name==='NotAllowedError'&&!vid.muted){vid.muted=true;try{await vid.play();toast('Som desligado: aperte OK no controle para ligar');updBtns();return}catch(e2){}}
+    if(e.name==='NotAllowedError'){ovMsg('Aperte OK no controle para assistir','',true);$('#bigPlay').focus();return}
+    if(e.name!=='AbortError')fail()}
 }
 function stop(){vid.pause();}
 vid.addEventListener('playing',()=>{playing=true;ovMsg('','',false);setTally('live','AO VIVO');updBtns()});
@@ -465,6 +482,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')document.body.classL
 $('#side').addEventListener('click',e=>{if(e.target===$('#side'))document.body.classList.remove('nav')});
 
 load();render();route();window.addEventListener('hashchange',()=>{route();});
+if(ISTV){$('#bigPlay').focus();setTimeout(play,600);document.addEventListener('keydown',e=>{if(['Enter','MediaPlayPause',' '].includes(e.key)||e.keyCode===13||e.keyCode===415||e.keyCode===19){if(vid.muted&&playing){vid.muted=false;updBtns();e.preventDefault();return}if(document.activeElement===document.body||document.activeElement===$('#bigPlay')){e.preventDefault();playing?stop():play()}}})}
 setTally('off','PARADO');ovMsg('Assistir ao vivo','',true);updBtns();
 }
 </script>
